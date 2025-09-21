@@ -4,8 +4,27 @@ from app.config import settings
 import os
 import json
 
-os.makedirs(os.path.dirname(settings.DB_PATH), exist_ok=True)
-engine = create_engine(f"sqlite:///{settings.DB_PATH}", connect_args={"check_same_thread": False})
+def get_database_url():
+    # Railway provides DATABASE_URL automatically for PostgreSQL
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Fix Railway's postgres:// to postgresql://
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        return database_url
+    else:
+        # Keep SQLite for local development
+        os.makedirs(os.path.dirname(settings.DB_PATH), exist_ok=True)
+        return f"sqlite:///{settings.DB_PATH}"
+
+# Create engine with the appropriate URL
+DATABASE_URL = get_database_url()
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+)
+
 Base = declarative_base()
 SessionLocal = sessionmaker(bind=engine)
 
@@ -16,4 +35,5 @@ class UserDoc(Base):
     path = Column(String)
     meta = Column(Text)  
 
+# Create tables
 Base.metadata.create_all(bind=engine)
